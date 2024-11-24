@@ -1,7 +1,7 @@
 // Configurações do Firebase
 const firebaseConfig = {
     apiKey: "SUA_API_KEY",
-    authDomain: "SEU_DOMINIO.firebaseapp.com",
+    authDomain: "https://airplane-31582-default-rtdb.firebaseio.com",
     projectId: "SEU_PROJECT_ID",
     storageBucket: "SEU_BUCKET.appspot.com",
     messagingSenderId: "SEU_SENDER_ID",
