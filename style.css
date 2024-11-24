@@ -1,0 +1,12 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: white; /* Alterar o fundo da página para branco */
+}
+
+canvas {
+    background-color: white; /* Alterar o fundo do canvas para branco */
+}
