@@ -1,135 +1,134 @@
+// Configurações do Firebase
+const firebaseConfig = {
+    apiKey: "SUA_API_KEY",
+    authDomain: "SEU_DOMINIO.firebaseapp.com",
+    projectId: "SEU_PROJECT_ID",
+    storageBucket: "SEU_BUCKET.appspot.com",
+    messagingSenderId: "SEU_SENDER_ID",
+    appId: "SEU_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-const airplane = new Image();
-airplane.src = 'airplane.png';
-const cloudImage = new Image();
-cloudImage.src = 'cloud.png';
-const collisionSound = new Audio('collision.mp3');
+const plane = new Image();
+plane.src = 'airplane.png'; // Substitua pelo caminho da imagem do avião
+const cloud = new Image();
+cloud.src = 'cloud.png'; // Substitua pelo caminho da imagem da nuvem
 
-let airplaneX = 100;
-let airplaneY = 200;
-let speed = 2;
+let planeX = canvas.width / 2;
+let planeY = canvas.height - 100;
 let score = 0;
-let level = 1;
 let clouds = [];
 let gameOver = false;
+let cloudSpeed = 2;
+let moveSpeed = 5;
+let keys = {};
 
-const airplaneWidth = 50;
-const airplaneHeight = 50;
-const reducedAirplaneWidth = airplaneWidth * 0.9;
-const reducedAirplaneHeight = airplaneHeight * 0.9;
-
-// Carregar os seis melhores scores do localStorage
-let highScores = JSON.parse(localStorage.getItem('highScores')) || [
-    { name: '---', score: 0 },
-    { name: '---', score: 0 },
-    { name: '---', score: 0 },
-    { name: '---', score: 0 },
-    { name: '---', score: 0 },
-    { name: '---', score: 0 }
-];
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowUp') {
-        airplaneY -= 15; // Aumentar a velocidade do movimento para cima
-    } else if (event.key === 'ArrowDown') {
-        airplaneY += 15; // Aumentar a velocidade do movimento para baixo
-    } else if (event.key === 'ArrowLeft') {
-        airplaneX -= 15; // Aumentar a velocidade do movimento para trás
-    } else if (event.key === 'ArrowRight') {
-        airplaneX += 15; // Aumentar a velocidade do movimento para frente
-    } else if (event.key === ' ') {
-        if (gameOver) {
-            resetGame();
-        }
-    }
-});
-
-function addCloud() {
-    const cloud = {
-        x: canvas.width,
-        y: Math.random() * canvas.height,
-        width: 50,
-        height: 50
-    };
-    clouds.push(cloud);
+async function fetchScores() {
+    const snapshot = await db.collection('scores').orderBy('score', 'desc').limit(6).get();
+    return snapshot.docs.map(doc => doc.data());
 }
 
-function update() {
-    if (gameOver) return;
+async function saveScore(name, score) {
+    await db.collection('scores').add({ name, score });
+    displayHighscores();
+}
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(airplane, airplaneX, airplaneY, reducedAirplaneWidth, reducedAirplaneHeight);
+function drawPlane() {
+    ctx.drawImage(plane, planeX, planeY, 50, 50);
+}
 
-    // Desenhar pontuação
-    ctx.font = '20px Arial';
-    ctx.fillStyle = 'black';
-    ctx.fillText('Score: ' + score, canvas.width - 100, 30);
-
-    // Desenhar os seis melhores scores
-    ctx.fillText('High Scores:', 10, 30);
-    highScores.forEach((record, index) => {
-        ctx.fillText(`${index + 1}. ${record.name}: ${record.score}`, 10, 60 + index * 30);
-    });
-
-    if (Math.random() < 0.02) {
-        addCloud();
-    }
-
-    clouds.forEach((cloud, index) => {
-        cloud.x -= speed;
-        ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
-
-        if (cloud.x + cloud.width < 0) {
-            clouds.splice(index, 1);
+function drawClouds() {
+    clouds.forEach(cloud => {
+        ctx.drawImage(cloud.img, cloud.x, cloud.y, 50, 50);
+        cloud.y += cloudSpeed;
+        if (cloud.y > canvas.height) {
+            cloud.y = -50;
+            cloud.x = Math.random() * canvas.width;
             score++;
-            if (score % 50 === 0) {
-                level++;
-                speed += 1;
+            document.getElementById('score').innerText = score;
+            if (score % 40 === 0) { // Aumenta a velocidade a cada 40 pontos
+                cloudSpeed++;
+                createClouds(2); // Adiciona mais nuvens
             }
         }
-
-        if (
-            airplaneX < cloud.x + cloud.width &&
-            airplaneX + reducedAirplaneWidth > cloud.x &&
-            airplaneY < cloud.y + cloud.height &&
-            airplaneY + reducedAirplaneHeight > cloud.y
-        ) {
+        if (planeX < cloud.x + 50 && planeX + 50 > cloud.x && planeY < cloud.y + 50 && planeY + 50 > cloud.y) {
             gameOver = true;
-            collisionSound.play();
-            const playerName = prompt('Game Over! Score: ' + score + '\nDigite seu nome:');
-            updateHighScores(playerName, score);
-            alert('Pressione a tecla de espaço para reiniciar.');
+            let playerName = prompt('Game Over! Insira seu nome:');
+            saveScore(playerName, score);
         }
     });
-
-    requestAnimationFrame(update);
 }
 
-function updateHighScores(name, score) {
-    highScores.push({ name, score });
-    highScores.sort((a, b) => b.score - a.score);
-    highScores = highScores.slice(0, 6);
-    localStorage.setItem('highScores', JSON.stringify(highScores));
+function gameLoop() {
+    if (gameOver) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawPlane();
+    drawClouds();
+    updatePlanePosition();
+    requestAnimationFrame(gameLoop);
 }
 
-function resetGame() {
-    airplaneX = 100;
-    airplaneY = 200;
-    speed = 2;
-    score = 0;
-    level = 1;
-    clouds = [];
-    gameOver = false;
-    update();
+function createClouds(amount = 5) {
+    for (let i = 0; i < amount; i++) {
+        clouds.push({
+            img: cloud,
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height - canvas.height
+        });
+    }
 }
 
-airplane.onload = () => {
-    console.log('Airplane image loaded');
-    update();
-};
+async function displayHighscores() {
+    const highscores = await fetchScores();
+    const highscoresList = document.getElementById('highscores');
+    highscoresList.innerHTML = '';
+    highscores.forEach(score => {
+        const li = document.createElement('li');
+        li.textContent = `${score.name}: ${score.score}`;
+        highscoresList.appendChild(li);
+    });
+}
 
-cloudImage.onload = () => {
-    console.log('Cloud image loaded');
-};
+function updatePlanePosition() {
+    if (keys['ArrowUp']) planeY = Math.max(0, planeY - moveSpeed);
+    if (keys['ArrowDown']) planeY = Math.min(canvas.height - 50, planeY + moveSpeed);
+    if (keys['ArrowLeft']) planeX = Math.max(0, planeX - moveSpeed);
+    if (keys['ArrowRight']) planeX = Math.min(canvas.width - 50, planeX + moveSpeed);
+}
+
+document.getElementById('up').addEventListener('mousedown', () => keys['ArrowUp'] = true);
+document.getElementById('up').addEventListener('mouseup', () => keys['ArrowUp'] = false);
+document.getElementById('up').addEventListener('touchstart', () => keys['ArrowUp'] = true);
+document.getElementById('up').addEventListener('touchend', () => keys['ArrowUp'] = false);
+
+document.getElementById('down').addEventListener('mousedown', () => keys['ArrowDown'] = true);
+document.getElementById('down').addEventListener('mouseup', () => keys['ArrowDown'] = false);
+document.getElementById('down').addEventListener('touchstart', () => keys['ArrowDown'] = true);
+document.getElementById('down').addEventListener('touchend', () => keys['ArrowDown'] = false);
+
+document.getElementById('left').addEventListener('mousedown', () => keys['ArrowLeft'] = true);
+document.getElementById('left').addEventListener('mouseup', () => keys['ArrowLeft'] = false);
+document.getElementById('left').addEventListener('touchstart', () => keys['ArrowLeft'] = true);
+document.getElementById('left').addEventListener('touchend', () => keys['ArrowLeft'] = false);
+
+document.getElementById('right').addEventListener('mousedown', () => keys['ArrowRight'] = true);
+document.getElementById('right').addEventListener('mouseup', () => keys['ArrowRight'] = false);
+document.getElementById('right').addEventListener('touchstart', () => keys['ArrowRight'] = true);
+document.getElementById('right').addEventListener('touchend', () => keys['ArrowRight'] = false);
+
+document.getElementById('restart').addEventListener('click', () => location.reload());
+document.getElementById('close').addEventListener('click', () => window.close());
+
+window.addEventListener('keydown', (e) => keys[e.key] = true);
+window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+createClouds();
+displayHighscores();
+gameLoop();
